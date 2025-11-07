@@ -23,6 +23,9 @@ import { useUIStore } from '@/stores/ui.store';
 import { PROJECT_DATA_STORES } from '@/features/dataStore/constants';
 import ReadyToRunV2Button from '@/experiments/readyToRunWorkflowsV2/components/ReadyToRunV2Button.vue';
 
+import { isIFrameOrigin } from '@/utils/iframeUtils';
+import { useExternalHooks } from '@/composables/useExternalHooks';
+
 const route = useRoute();
 const router = useRouter();
 const i18n = useI18n();
@@ -32,6 +35,7 @@ const settingsStore = useSettingsStore();
 const uiStore = useUIStore();
 
 const projectPages = useProjectPages();
+const externalHooks = useExternalHooks();
 
 const props = defineProps<{
 	hasActiveCallouts?: boolean;
@@ -200,6 +204,13 @@ function getUIContext(routeName: string) {
 
 const actions: Record<ActionTypes, (projectId: string) => void> = {
 	[ACTION_TYPES.WORKFLOW]: (projectId: string) => {
+		if (isIFrameOrigin()) {
+			externalHooks.run('workflow.add', {
+				projectId: projectId,
+			});
+			return;
+		}
+
 		void router.push({
 			name: VIEWS.NEW_WORKFLOW,
 			query: {

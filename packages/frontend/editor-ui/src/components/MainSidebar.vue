@@ -288,6 +288,10 @@ const mainMenuItems = computed<IMenuItem[]>(() => [
 const createBtn = ref<InstanceType<typeof N8nNavigationDropdown>>();
 
 const isCollapsed = computed(() => uiStore.sidebarMenuCollapsed);
+const isSidebarHidden = computed(() => new URL(location.href).searchParams.get('hideSidebar') === 'true');
+const logoPath = computed(
+	() => basePath.value + (isCollapsed.value ? 'static/logo/collapsed.svg' : uiStore.logo),
+);
 
 const showUserArea = computed(() => hasPermission(['authenticated']));
 const userIsTrialing = computed(() => cloudPlanStore.userIsTrialing);
@@ -436,7 +440,7 @@ onClickOutside(createBtn as Ref<VueInstance>, () => {
 </script>
 
 <template>
-	<div
+	<div v-show="!isSidebarHidden"
 		id="side-menu"
 		:class="{
 			['side-menu']: true,

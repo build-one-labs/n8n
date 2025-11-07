@@ -224,7 +224,7 @@ export function useChatState(isReadOnly: boolean): ChatState {
 		}
 	}
 
-	function displayExecution(executionId: string) {
+	async function displayExecution(executionId: string) {
 		const route = router.resolve({
 			name: VIEWS.EXECUTION_PREVIEW,
 			params: { name: workflowsStore.workflowId, executionId },

@@ -8,6 +8,7 @@ import type { EventBus } from '@n8n/utils/event-bus';
 import { useI18n } from '@n8n/i18n';
 import { v4 as uuid } from 'uuid';
 import { useToast } from '@/composables/useToast';
+import { isIFrameOrigin } from '@/utils/iframeUtils';
 
 interface TagsDropdownProps {
 	placeholder: string;
@@ -77,7 +78,7 @@ const dropdownClasses = computed(() =>
 		'tags-dropdown',
 		`tags-dropdown-${dropdownId}`,
 		props.createEnabled ? 'tags-dropdown-create-enabled' : '',
-		props.manageEnabled ? 'tags-dropdown-manage-enabled' : '',
+		props.manageEnabled && !isIFrameOrigin() ? 'tags-dropdown-manage-enabled' : '',
 	].join(' '),
 );
 
@@ -260,8 +261,8 @@ onClickOutside(
 				data-test-id="tag"
 			/>
 
-			<N8nOption v-if="manageEnabled" :key="MANAGE_KEY" :value="MANAGE_KEY" class="ops manage-tags">
-				<N8nIcon icon="cog" />
+			<N8nOption v-if="manageEnabled && !isIFrameOrigin()" :key="MANAGE_KEY" :value="MANAGE_KEY" class="ops manage-tags">
+				<n8n-icon icon="cog" />
 				<span>{{ i18n.baseText('tagsDropdown.manageTags') }}</span>
 			</N8nOption>
 		</N8nSelect>

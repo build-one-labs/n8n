@@ -69,6 +69,9 @@ const WORKFLOW_NAME_BP_TO_WIDTH: { [key: string]: number } = {
 	LG: 500,
 	XL: 1000,
 };
+import { useExternalHooks } from '@/composables/useExternalHooks';
+
+import { isIFrameOrigin } from '@/utils/iframeUtils';
 
 const props = defineProps<{
 	readOnly?: boolean;
@@ -107,6 +110,7 @@ const documentTitle = useDocumentTitle();
 const workflowSaving = useWorkflowSaving({ router });
 const workflowHelpers = useWorkflowHelpers();
 const pageRedirectionHelper = usePageRedirectionHelper();
+const externalHooks = useExternalHooks();
 
 const isTagsEditEnabled = ref(false);
 const appliedTagIds = ref<string[]>([]);
@@ -544,6 +548,13 @@ async function onWorkflowMenuSelect(action: WORKFLOW_MENU_ACTIONS): Promise<void
 
 			try {
 				await workflowsStore.archiveWorkflow(props.id);
+
+				if (isIFrameOrigin()) {
+					await externalHooks.run('workflow.delete', {
+						workflowId: props.id,
+						type: 'archive',
+					});
+				}
 			} catch (error) {
 				toast.showError(error, locale.baseText('generic.archiveWorkflowError'));
 				return;
@@ -594,6 +605,12 @@ async function onWorkflowMenuSelect(action: WORKFLOW_MENU_ACTIONS): Promise<void
 
 			try {
 				await workflowsStore.deleteWorkflow(props.id);
+
+				if (isIFrameOrigin()) {
+					await externalHooks.run('workflow.delete', {
+						workflowId: props.id,
+					});
+				}
 			} catch (error) {
 				toast.showError(error, locale.baseText('generic.deleteWorkflowError'));
 				return;

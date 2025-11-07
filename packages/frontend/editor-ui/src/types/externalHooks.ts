@@ -215,6 +215,9 @@ export interface ExternalHooks {
 		activeChangeCurrent: Array<ExternalHooksMethod<{ workflowId: string; active: boolean }>>;
 		afterUpdate: Array<ExternalHooksMethod<{ workflowData: IWorkflowDb }>>;
 		open: Array<ExternalHooksMethod<{ workflowId: string; workflowName: string }>>;
+		add: Array<ExternalHooksMethod<{ projectId: string }>>;
+		duplicate: Array<ExternalHooksMethod<{ workflowData: IWorkflowDb }>>;
+		delete: Array<ExternalHooksMethod<{ workflowId: string; type?: string }>>;
 	};
 	execution: {
 		open: Array<
@@ -293,8 +296,8 @@ export interface ExternalHooks {
 		open: Array<
 			ExternalHooksMethod<{
 				templateId: string;
-				templateName: string;
-				workflow: { nodes: INodeUi[] | IWorkflowTemplateNode[]; connections: IConnections };
+				templateName?: string;
+				workflow?: { nodes: INodeUi[] | IWorkflowTemplateNode[]; connections: IConnections };
 			}>
 		>;
 	};

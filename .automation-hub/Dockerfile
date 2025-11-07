@@ -1,0 +1,5 @@
+FROM n8n-custom:base
+USER root
+
+ENV N8N_RELEASE_TYPE=stable
+ENV N8N_PERSONALIZATION_ENABLED=false

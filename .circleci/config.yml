@@ -1,0 +1,27 @@
+version: 2.1
+
+jobs:
+  publish:
+    docker:
+      - image: cimg/node:22.16.0
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Build image
+          command: .automation-hub/build.sh "${CIRCLE_TAG}"
+      - run:
+          name: Publish image
+          command: .automation-hub/push.sh "${CIRCLE_TAG}"
+
+workflows:
+  build-publish-workflow:
+    jobs:
+      - publish:
+          context: build-defaults
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /.*/

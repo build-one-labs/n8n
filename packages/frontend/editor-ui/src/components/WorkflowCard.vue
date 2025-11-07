@@ -21,6 +21,7 @@ import ProjectCardBadge from '@/components/Projects/ProjectCardBadge.vue';
 import { useI18n } from '@n8n/i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useTelemetry } from '@/composables/useTelemetry';
+import { useExternalHooks } from '@/composables/useExternalHooks';
 import { ResourceType } from '@/utils/projects.utils';
 import type { EventBus } from '@n8n/utils/event-bus';
 import type { WorkflowResource } from '@/Interface';
@@ -28,6 +29,7 @@ import type { IUser } from 'n8n-workflow';
 import { type ProjectSharingData, ProjectTypes } from '@/types/projects.types';
 import type { PathItem } from '@n8n/design-system/components/N8nBreadcrumbs/Breadcrumbs.vue';
 import { useFoldersStore } from '@/stores/folders.store';
+import { isIFrameOrigin } from '@/utils/iframeUtils';
 
 const WORKFLOW_LIST_ITEM_ACTIONS = {
 	OPEN: 'open',
@@ -85,6 +87,8 @@ const locale = useI18n();
 const router = useRouter();
 const route = useRoute();
 const telemetry = useTelemetry();
+const i18n = useI18n();
+const externalHooks = useExternalHooks();
 
 const uiStore = useUIStore();
 const usersStore = useUsersStore();
@@ -232,6 +236,15 @@ const isSomeoneElsesWorkflow = computed(
 );
 
 async function onClick(event?: KeyboardEvent | PointerEvent) {
+	if (isIFrameOrigin()) {
+		await externalHooks.run('workflow.open', {
+			workflowId: props.data.id,
+			workflowName: props.data.name,
+		});
+
+		return;
+	}
+
 	if (event?.ctrlKey || event?.metaKey) {
 		const route = router.resolve({
 			name: VIEWS.WORKFLOW,
@@ -350,6 +363,12 @@ async function deleteWorkflow() {
 
 	try {
 		await workflowsStore.deleteWorkflow(props.data.id);
+
+		if (isIFrameOrigin()) {
+			await externalHooks.run('workflow.delete', {
+				workflowId: props.data.id,
+			});
+		}
 	} catch (error) {
 		toast.showError(error, locale.baseText('generic.deleteWorkflowError'));
 		return;

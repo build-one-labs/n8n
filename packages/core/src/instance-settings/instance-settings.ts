@@ -184,7 +184,7 @@ export class InstanceSettings {
 				errorMessage: `Error parsing n8n-config file "${this.settingsFile}". It does not seem to be valid JSON.`,
 			});
 
-			if (!inTest) this.logger.debug(`User settings loaded from: ${this.settingsFile}`);
+			// if (!inTest) console.info(`User settings loaded from: ${this.settingsFile}`);
 
 			const { encryptionKey, tunnelSubdomain } = settings;
 

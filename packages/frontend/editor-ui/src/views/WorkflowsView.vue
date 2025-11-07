@@ -81,6 +81,8 @@ import debounce from 'lodash/debounce';
 import { type IUser, PROJECT_ROOT } from 'n8n-workflow';
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { type LocationQueryRaw, useRoute, useRouter } from 'vue-router';
+import { isIFrameOrigin } from '@/utils/iframeUtils';
+import { useExternalHooks } from '@/composables/useExternalHooks';
 
 const SEARCH_DEBOUNCE_TIME = 300;
 const FILTERS_DEBOUNCE_TIME = 100;
@@ -135,6 +137,8 @@ const personalizedTemplatesV3Store = usePersonalizedTemplatesV3Store();
 const documentTitle = useDocumentTitle();
 const { callDebounced } = useDebounce();
 const projectPages = useProjectPages();
+
+const externalHooks = useExternalHooks();
 
 // We render component in a loading state until initialization is done
 // This will prevent any additional workflow fetches while initializing
@@ -869,6 +873,11 @@ const setFiltersFromQueryString = async () => {
 // Misc methods
 
 const addWorkflow = () => {
+	if (isIFrameOrigin()) {
+		externalHooks.run('workflow.add').catch(() => {});
+		return;
+	}
+
 	uiStore.nodeViewInitialized = false;
 	void router.push({
 		name: VIEWS.NEW_WORKFLOW,
@@ -1794,7 +1803,10 @@ const onNameSubmit = async (name: string) => {
 				/>
 			</ProjectHeader>
 		</template>
-		<template v-if="foldersEnabled || showRegisteredCommunityCTA" #add-button>
+		<template
+			v-if="(foldersEnabled || showRegisteredCommunityCTA) && !isIFrameOrigin()"
+			#add-button
+		>
 			<N8nTooltip
 				placement="top"
 				:disabled="

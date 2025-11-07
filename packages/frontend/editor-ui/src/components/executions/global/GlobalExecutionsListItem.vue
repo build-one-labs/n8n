@@ -19,6 +19,8 @@ import type { ExecutionStatus, ExecutionSummary } from 'n8n-workflow';
 import { WAIT_INDEFINITELY } from 'n8n-workflow';
 import { computed, ref, useCssModule } from 'vue';
 import { type IconName } from '@n8n/design-system/components/N8nIcon/icons';
+import { useExternalHooks } from '@/composables/useExternalHooks';
+import { isIFrameOrigin } from '@/utils/iframeUtils';
 
 type Command = 'retrySaved' | 'retryOriginal' | 'delete';
 
@@ -49,6 +51,7 @@ const props = withDefaults(
 const style = useCssModule();
 const locale = useI18n();
 const executionHelpers = useExecutionHelpers();
+const externalHooks = useExternalHooks();
 
 const isStopping = ref(false);
 
@@ -63,6 +66,25 @@ const isWaitTillIndefinite = computed(() => {
 });
 
 const isRetriable = computed(() => executionHelpers.isExecutionRetriable(props.execution));
+
+const executionLink = computed(() => ({
+	name: VIEWS.EXECUTION_PREVIEW,
+	params: {
+		name: props.execution.workflowId,
+		executionId: props.execution.id,
+	},
+}));
+
+async function handleExecutionClick(event) {
+	if (isIFrameOrigin()) {
+		event.preventDefault(); // Stop RouterLink navigation
+		await externalHooks.run('execution.open', {
+			workflowId: props.execution.workflowId,
+			workflowName: props.execution.workflowName ?? '',
+			executionId: props.execution.id,
+		});
+	}
+}
 
 const EXECUTION_STATUS = {
 	CRASHED: 'crashed',
@@ -185,13 +207,10 @@ async function handleActionItemClick(commandData: Command) {
 		</td>
 		<td>
 			<N8nTooltip :content="execution.workflowName || workflowName" placement="top">
-				<RouterLink
-					:to="{
-						name: VIEWS.EXECUTION_PREVIEW,
-						params: { name: execution.workflowId, executionId: execution.id },
-					}"
-					:class="$style.workflowName"
+				<RouterLink 
+					:to="executionLink"
 					target="_blank"
+					@click.native="handleExecutionClick"
 				>
 					{{ execution.workflowName || workflowName }}
 				</RouterLink>

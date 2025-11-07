@@ -27,6 +27,7 @@ import { useNodeHelpers } from './useNodeHelpers';
 import { tryToParseNumber } from '@/utils/typesUtils';
 import { useTemplatesStore } from '@/stores/templates.store';
 import { useFocusPanelStore } from '@/stores/focusPanel.store';
+import { isIFrameOrigin } from '@/utils/iframeUtils';
 
 export function useWorkflowSaving({ router }: { router: ReturnType<typeof useRouter> }) {
 	const uiStore = useUIStore();
@@ -362,13 +363,19 @@ export function useWorkflowSaving({ router }: { router: ReturnType<typeof useRou
 			focusPanelStore.onNewWorkflowSave(workflowData.id);
 
 			if (openInNewWindow) {
-				const routeData = router.resolve({
-					name: VIEWS.WORKFLOW,
-					params: { name: workflowData.id },
-				});
-				window.open(routeData.href, '_blank');
-				uiStore.removeActiveAction('workflowSaving');
-				return workflowData.id;
+				if (isIFrameOrigin()) {
+					void useExternalHooks().run('workflow.duplicate', { workflowData });
+					uiStore.removeActiveAction('workflowSaving');
+					return workflowData.id;
+				} else {
+					const routeData = router.resolve({
+						name: VIEWS.WORKFLOW,
+						params: { name: workflowData.id },
+					});
+					window.open(routeData.href, '_blank');
+					uiStore.removeActiveAction('workflowSaving');
+					return workflowData.id;
+				}
 			}
 
 			// workflow should not be active if there is live webhook with the same path

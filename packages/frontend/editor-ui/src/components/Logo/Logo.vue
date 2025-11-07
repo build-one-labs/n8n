@@ -2,6 +2,8 @@
 import type { FrontendSettings } from '@n8n/api-types';
 import { computed, onMounted, useCssModule, useTemplateRef } from 'vue';
 import { useFavicon } from '@vueuse/core';
+import { useRootStore } from '@n8n/stores/useRootStore';
+import { useUIStore } from '@/stores/ui.store';
 
 import LogoIcon from './logo-icon.svg';
 import LogoText from './logo-text.svg';
@@ -21,6 +23,9 @@ const props = defineProps<
 >();
 
 const { location, releaseChannel } = props;
+
+const rootStore = useRootStore();
+const uiStore = useUIStore();
 
 const showLogoText = computed(() => {
 	if (location === 'authView') return true;
@@ -53,14 +58,14 @@ onMounted(() => {
 	const blob = new Blob([logoEl.outerHTML], { type: 'image/svg+xml' });
 	useFavicon(URL.createObjectURL(blob));
 });
+
+const basePath = computed(() => rootStore.baseUrl);
+
+const logoPath = computed(() => basePath.value + uiStore.logo);
 </script>
 
 <template>
-	<div :class="containerClasses" data-test-id="n8n-logo">
-		<LogoIcon ref="logo" :class="$style.logo" />
-		<LogoText v-if="showLogoText" :class="$style.logoText" />
-		<slot />
-	</div>
+	<img :src="logoPath" :class="$style.img" alt="n8n.io" />
 </template>
 
 <style lang="scss" module>

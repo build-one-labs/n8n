@@ -69,7 +69,7 @@ type ExternalHooksMap = {
 	'workflow.activate': [updatedWorkflow: IWorkflowBase];
 	'workflow.update': [updatedWorkflow: IWorkflowBase];
 	'workflow.afterUpdate': [updatedWorkflow: IWorkflowBase];
-	'workflow.delete': [workflowId: string];
+	'workflow.delete': [workflowId: string, type?: string];
 	'workflow.afterDelete': [workflowId: string];
 	'workflow.afterArchive': [workflowId: string];
 	'workflow.afterUnarchive': [workflowId: string];

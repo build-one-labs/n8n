@@ -387,14 +387,8 @@ export abstract class DirectoryLoader {
 
 	private getIconPath(icon: string, filePath: string) {
 		const iconPath = path.join(path.dirname(filePath), icon.replace('file:', ''));
-
-		if (!isContainedWithin(this.directory, path.join(this.directory, iconPath))) {
-			throw new UnexpectedError(
-				`Icon path "${iconPath}" is not contained within the package directory "${this.directory}"`,
-			);
-		}
-
-		return `icons/${this.packageName}/${iconPath}`;
+		const relativePath = path.relative(this.directory, iconPath);
+		return `icons/${this.packageName}/${relativePath}`;
 	}
 
 	private fixIconPaths(

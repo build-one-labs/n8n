@@ -50,8 +50,14 @@ const insideIframe = ref(false);
 const scrollX = ref(0);
 const scrollY = ref(0);
 
+const url = new URL(window.location.href);
+const params = new URLSearchParams(url.search);
+const currentTheme = params.get('theme') ?? uiStore.theme;
+
+const theme = `?theme=${currentTheme}`;
+
 const iframeSrc = computed(() => {
-	return `${window.BASE_PATH ?? '/'}workflows/demo`;
+	return `${window.BASE_PATH ?? '/'}workflows/demo/${theme}`;
 });
 
 const showPreview = computed(() => {

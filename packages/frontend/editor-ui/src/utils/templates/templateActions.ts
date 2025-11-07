@@ -18,6 +18,7 @@ import type { useExternalHooks } from '@/composables/useExternalHooks';
 import { assert } from '@n8n/utils/assert';
 import { doesNodeHaveCredentialsToFill } from '@/utils/nodes/nodeTransforms';
 import { tryToParseNumber } from '@/utils/typesUtils';
+import { isIFrameOrigin } from '@/utils/iframeUtils';
 
 type ExternalHooks = ReturnType<typeof useExternalHooks>;
 
@@ -113,6 +114,12 @@ async function openTemplateWorkflowOnNodeView(opts: {
 		const route = router.resolve(routeLocation);
 		window.open(route.href, '_blank');
 	} else {
+		if (isIFrameOrigin()) {
+			await externalHooks.run('template.open', { templateId });
+
+			return;
+		}
+
 		await router.push(routeLocation);
 	}
 }
