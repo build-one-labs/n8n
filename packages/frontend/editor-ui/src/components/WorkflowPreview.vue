@@ -6,6 +6,7 @@ import type { IWorkflowDb } from '@/Interface';
 import type { IWorkflowTemplate } from '@n8n/rest-api-client/api/templates';
 import { useExecutionsStore } from '@/stores/executions.store';
 import { useProjectsStore } from '@/stores/projects.store';
+import { useUIStore } from '@/stores/ui.store';
 
 const props = withDefaults(
 	defineProps<{
@@ -42,6 +43,7 @@ const i18n = useI18n();
 const toast = useToast();
 const executionsStore = useExecutionsStore();
 const projectsStore = useProjectsStore();
+const uiStore = useUIStore();
 
 const iframeRef = ref<HTMLIFrameElement | null>(null);
 const nodeViewDetailsOpened = ref(false);
