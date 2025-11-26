@@ -2,7 +2,7 @@
 import { useFavicon } from '@vueuse/core';
 import { computed, onMounted, useCssModule, useTemplateRef } from 'vue';
 import { useRootStore } from '@n8n/stores/useRootStore';
-import { useUIStore } from '@/stores/ui.store';
+import { useUIStore } from '@/app/stores/ui.store';
 
 import LogoIcon from './logo-icon.svg';
 import LogoText from './logo-text.svg';
