@@ -27,8 +27,6 @@ const readyToRunStore = useReadyToRunStore();
 
 const isLoadingReadyToRun = ref(false);
 
-const isLoadingReadyToRun = ref(false);
-
 const currentUser = computed(() => usersStore.currentUser ?? ({} as IUser));
 const personalProject = computed(() => projectsStore.personalProject);
 const readOnlyEnv = computed(() => sourceControlStore.preferences.branchReadOnly);
