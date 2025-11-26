@@ -11,12 +11,6 @@ const NOTIFICATIONS = {
 
 test.describe('Workflows', () => {
 	test.beforeEach(async ({ n8n }) => {
-		await n8n.api.enableFeature('sharing');
-		await n8n.api.enableFeature('folders');
-		await n8n.api.enableFeature('advancedPermissions');
-		await n8n.api.enableFeature('projectRole:admin');
-		await n8n.api.enableFeature('projectRole:editor');
-		await n8n.api.setMaxTeamProjectsQuota(-1);
 		await n8n.goHome();
 	});
 
@@ -30,12 +24,14 @@ test.describe('Workflows', () => {
 	test('should create a new workflow using add workflow button and save successfully', async ({
 		n8n,
 	}) => {
+		const { projectId } = await n8n.projectComposer.createProject();
+		await n8n.page.goto(`projects/${projectId}/workflows`);
 		await n8n.workflows.addResource.workflow();
 
 		const uniqueIdForCreate = nanoid(8);
 		const workflowName = `Test Workflow ${uniqueIdForCreate}`;
 		await n8n.canvas.setWorkflowName(workflowName);
-		await n8n.canvas.clickSaveWorkflowButton();
+		await n8n.canvas.saveWorkflow();
 
 		await expect(n8n.notifications.getNotificationByTitle(NOTIFICATIONS.CREATED)).toBeVisible();
 	});
@@ -45,7 +41,7 @@ test.describe('Workflows', () => {
 		const specificName = `Specific Test ${uniqueId}`;
 		const genericName = `Generic Test ${uniqueId}`;
 
-		await n8n.workflowComposer.createWorkflow(specificName);
+		await n8n.workflowComposer.createWorkflowFromSidebar(specificName);
 		await n8n.goHome();
 		await n8n.workflowComposer.createWorkflow(genericName);
 		await n8n.goHome();
@@ -69,7 +65,7 @@ test.describe('Workflows', () => {
 	test('should archive and unarchive a workflow', async ({ n8n }) => {
 		const uniqueIdForArchive = nanoid(8);
 		const workflowName = `Archive Test ${uniqueIdForArchive}`;
-		await n8n.workflowComposer.createWorkflow(workflowName);
+		await n8n.workflowComposer.createWorkflowFromSidebar(workflowName);
 		await n8n.goHome();
 
 		// Create a second workflow so we can still see filters
@@ -91,7 +87,7 @@ test.describe('Workflows', () => {
 	test('should delete an archived workflow', async ({ n8n }) => {
 		const uniqueIdForDelete = nanoid(8);
 		const workflowName = `Delete Test ${uniqueIdForDelete}`;
-		await n8n.workflowComposer.createWorkflow(workflowName);
+		await n8n.workflowComposer.createWorkflowFromSidebar(workflowName);
 		await n8n.goHome();
 		await n8n.workflowComposer.createWorkflow();
 		await n8n.goHome();

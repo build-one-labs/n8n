@@ -8,7 +8,7 @@ import { GlobalConfig } from '@n8n/config';
 import { ExecutionRepository, WorkflowRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
 import { ExternalSecretsProxy, WorkflowExecute } from 'n8n-core';
-import { UnexpectedError, Workflow } from 'n8n-workflow';
+import { UnexpectedError, Workflow, createRunExecutionData } from 'n8n-workflow';
 import type {
 	IDataObject,
 	IExecuteData,
@@ -16,7 +16,6 @@ import type {
 	INode,
 	INodeExecutionData,
 	INodeParameters,
-	IRunExecutionData,
 	IWorkflowBase,
 	IWorkflowExecuteAdditionalData,
 	IWorkflowSettings,
@@ -30,13 +29,13 @@ import type {
 	EnvProviderState,
 	ExecuteWorkflowData,
 	RelatedExecution,
+	IRunExecutionData,
 } from 'n8n-workflow';
 
 import { ActiveExecutions } from '@/active-executions';
 import { CredentialsHelper } from '@/credentials-helper';
 import { EventService } from '@/events/event.service';
 import type { AiEventMap, AiEventPayload } from '@/events/maps/ai.event-map';
-// eslint-disable-next-line import-x/no-cycle
 import { getLifecycleHooksForSubExecutions } from '@/execution-lifecycle/execution-lifecycle-hooks';
 import { ExecutionDataService } from '@/executions/execution-data.service';
 import {
@@ -52,11 +51,11 @@ import { findSubworkflowStart } from '@/utils';
 import { objectToError } from '@/utils/object-to-error';
 import * as WorkflowHelpers from '@/workflow-helpers';
 
-export async function getRunData(
+export function getRunData(
 	workflowData: IWorkflowBase,
 	inputData?: INodeExecutionData[],
 	parentExecution?: RelatedExecution,
-): Promise<IWorkflowExecutionDataProcess> {
+): IWorkflowExecutionDataProcess {
 	const mode = 'integrated';
 
 	const startingNode = findSubworkflowStart(workflowData.nodes);
@@ -79,20 +78,12 @@ export async function getRunData(
 		source: null,
 	});
 
-	const runExecutionData: IRunExecutionData = {
-		startData: {},
-		resultData: {
-			runData: {},
-		},
+	const runExecutionData = createRunExecutionData({
 		executionData: {
-			contextData: {},
-			metadata: {},
 			nodeExecutionStack,
-			waitingExecution: {},
-			waitingExecutionSource: {},
 		},
 		parentExecution,
-	};
+	});
 
 	return {
 		executionMode: mode,
@@ -156,8 +147,7 @@ export async function executeWorkflow(
 		(await getWorkflowData(workflowInfo, options.parentWorkflowId, options.parentWorkflowSettings));
 
 	const runData =
-		options.loadedRunData ??
-		(await getRunData(workflowData, options.inputData, options.parentExecution));
+		options.loadedRunData ?? getRunData(workflowData, options.inputData, options.parentExecution);
 
 	const executionId = await activeExecutions.add(runData);
 
@@ -363,17 +353,31 @@ export function sendDataToUI(type: PushType, data: IDataObject | IDataObject[]) 
 
 /**
  * Returns the base additional data without webhooks
+ * @returns {IWorkflowExecuteAdditionalData}
+ * param userId - The ID of the user executing the workflow, if available
+ * param workflowId - The ID of the workflow being executed, if available
+ * param projectId - The ID of the project the workflow is owned by, if available
+ * param currentNodeParameters - The parameters of the currently executing node
+ * param executionTimeoutTimestamp - The timestamp (in ms) when the execution should time out
  */
-export async function getBase(
-	userId?: string,
-	currentNodeParameters?: INodeParameters,
-	executionTimeoutTimestamp?: number,
-): Promise<IWorkflowExecuteAdditionalData> {
+export async function getBase({
+	userId,
+	workflowId,
+	projectId,
+	currentNodeParameters,
+	executionTimeoutTimestamp,
+}: {
+	userId?: string;
+	workflowId?: string;
+	projectId?: string;
+	currentNodeParameters?: INodeParameters;
+	executionTimeoutTimestamp?: number;
+} = {}): Promise<IWorkflowExecuteAdditionalData> {
 	const urlBaseWebhook = Container.get(UrlService).getWebhookBaseUrl();
 
 	const globalConfig = Container.get(GlobalConfig);
 
-	const variables = await WorkflowHelpers.getVariables();
+	const variables = await WorkflowHelpers.getVariables(workflowId, projectId);
 
 	const eventService = Container.get(EventService);
 
