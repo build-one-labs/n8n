@@ -24,7 +24,7 @@ import {
 	SubworkflowPolicyChecker,
 } from '@/executions/pre-execution-checks';
 import { ExternalHooks } from '@/external-hooks';
-import { DataStoreProxyService } from '@/modules/data-table/data-store-proxy.service';
+import { DataTableProxyService } from '@/modules/data-table/data-table-proxy.service';
 import { UrlService } from '@/services/url.service';
 import { WorkflowStatisticsService } from '@/services/workflow-statistics.service';
 import { Telemetry } from '@/telemetry';
@@ -99,13 +99,13 @@ describe('WorkflowExecuteAdditionalData', () => {
 	mockInstance(CredentialsPermissionChecker);
 	mockInstance(SubworkflowPolicyChecker);
 	mockInstance(WorkflowStatisticsService);
-	mockInstance(DataStoreProxyService);
+	mockInstance(DataTableProxyService);
 
 	const urlService = mockInstance(UrlService);
 	Container.set(UrlService, urlService);
 
 	test('logAiEvent should call MessageEventBus', async () => {
-		const additionalData = await getBase('user-id');
+		const additionalData = await getBase({ userId: 'user-id', workflowId: 'workflow-id' });
 
 		const eventName = 'ai-messages-retrieved-from-memory';
 		const payload = {
@@ -191,14 +191,15 @@ describe('WorkflowExecuteAdditionalData', () => {
 	});
 
 	describe('getRunData', () => {
-		it('should throw error to add trigger ndoe', async () => {
+		it('should throw error to add trigger ndoe', () => {
 			const workflow = mock<IWorkflowBase>({
 				id: '1',
 				name: 'test',
 				nodes: [],
 				active: false,
 			});
-			await expect(getRunData(workflow)).rejects.toThrowError('Missing node to start execution');
+
+			expect(() => getRunData(workflow)).toThrowError('Missing node to start execution');
 		});
 
 		const workflow = mock<IWorkflowBase>({
@@ -212,8 +213,8 @@ describe('WorkflowExecuteAdditionalData', () => {
 			active: false,
 		});
 
-		it('should return default data', async () => {
-			expect(await getRunData(workflow)).toEqual({
+		it('should return default data', () => {
+			expect(getRunData(workflow)).toEqual({
 				executionData: {
 					executionData: {
 						contextData: {},
@@ -229,7 +230,13 @@ describe('WorkflowExecuteAdditionalData', () => {
 						waitingExecution: {},
 						waitingExecutionSource: {},
 					},
-					resultData: { runData: {} },
+					resultData: {
+						error: undefined,
+						lastNodeExecuted: undefined,
+						metadata: undefined,
+						pinData: undefined,
+						runData: {},
+					},
 					startData: {},
 				},
 				executionMode: 'integrated',
@@ -237,13 +244,13 @@ describe('WorkflowExecuteAdditionalData', () => {
 			});
 		});
 
-		it('should return run data with input data and metadata', async () => {
+		it('should return run data with input data and metadata', () => {
 			const data = [{ json: { test: 1 } }];
 			const parentExecution = {
 				executionId: '123',
 				workflowId: '567',
 			};
-			expect(await getRunData(workflow, data, parentExecution)).toEqual({
+			expect(getRunData(workflow, data, parentExecution)).toEqual({
 				executionData: {
 					executionData: {
 						contextData: {},
@@ -315,21 +322,23 @@ describe('WorkflowExecuteAdditionalData', () => {
 
 		it('should include userId when provided', async () => {
 			const userId = 'test-user-id';
-			const additionalData = await getBase(userId);
+			const additionalData = await getBase({ userId });
 
 			expect(additionalData.userId).toBe(userId);
 		});
 
 		it('should include currentNodeParameters when provided', async () => {
 			const currentNodeParameters = { param1: 'value1' };
-			const additionalData = await getBase(undefined, currentNodeParameters);
+			const additionalData = await getBase({ currentNodeParameters });
 
 			expect(additionalData.currentNodeParameters).toBe(currentNodeParameters);
 		});
 
 		it('should include executionTimeoutTimestamp when provided', async () => {
 			const executionTimeoutTimestamp = Date.now() + 1000;
-			const additionalData = await getBase(undefined, undefined, executionTimeoutTimestamp);
+			const additionalData = await getBase({
+				executionTimeoutTimestamp,
+			});
 
 			expect(additionalData.executionTimeoutTimestamp).toBe(executionTimeoutTimestamp);
 		});
