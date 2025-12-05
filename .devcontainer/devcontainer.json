@@ -9,10 +9,7 @@
 		"type=bind,source=${localEnv:HOME}/.n8n,target=/home/node/.n8n,consistency=cached"
 	],
 	"forwardPorts": [8080, 5678],
-	"postCreateCommand": "npm config set prefix ~/.npm-global && echo 'export PATH=$HOME/.npm-global/bin:$PATH' >> ~/.bashrc && echo 'export PATH=$HOME/.npm-global/bin:$PATH' >> ~/.profile && corepack prepare --activate && pnpm install && npm install -g @anthropic-ai/claude-code",
-	"containerEnv": {
-	"PATH": "/home/node/.npm-global/bin:${PATH}"
-	},
+	"postCreateCommand": "corepack prepare --activate && pnpm install && npm install -g @anthropic-ai/claude-code",
 	"postAttachCommand": {
 		"n8n": "pnpm build && pnpm start",
   		"claude": "claude"
