@@ -9,7 +9,7 @@
 		"type=bind,source=${localEnv:HOME}/.n8n,target=/home/node/.n8n,consistency=cached"
 	],
 	"forwardPorts": [8080, 5678],
-	"postCreateCommand": "corepack prepare --activate && pnpm install && npm install -g @anthropic-ai/claude-code",
+	"postCreateCommand": "corepack prepare --activate && pnpm install && sudo npm install -g @anthropic-ai/claude-code",
 	"postAttachCommand": {
 		"n8n": "pnpm build && pnpm start",
   		"claude": "claude"
