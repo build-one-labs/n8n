@@ -3,6 +3,88 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with
 code in the n8n repository.
 
+## Build.one Fork Customizations
+
+This is a fork of n8n maintained by Build.one. The following customizations
+have been added:
+
+### `.automation-hub/` - Custom Docker Image Build
+
+This directory contains scripts and assets for building and publishing a
+customized n8n Docker image branded as "Build.one - Automation Hub".
+
+#### Scripts
+
+- **`build.sh <version>`** - Builds the custom Docker image
+  ```bash
+  .automation-hub/build.sh n8n@1.26.0
+  ```
+  Installs dependencies, builds n8n, and creates a Docker image tagged as
+  `docker.cloudsmith.io/buildone/repository/n8n-custom:<version>`
+
+- **`push.sh <version>`** - Pushes the built image to Cloudsmith registry
+  ```bash
+  .automation-hub/push.sh n8n@1.26.0
+  ```
+  Requires `BUILDONE_USER` and `BUILDONE_TOKEN` environment variables
+
+- **`startup.sh`** - Starts n8n with a pre-configured SQLite database
+- **`shutdown.sh`** - Gracefully stops the running n8n process
+
+#### Customization System
+
+- **`custom/customize.sh`** - Main script that applies all branding changes:
+  - Copies custom assets (logos, favicons) to `packages/editor-ui/public`
+  - Replaces CSS color variables via `.ini` files
+  - Updates page titles and i18n strings from "n8n" to "Build.one - Automation Hub"
+
+- **`custom/replace.sh`** - Helper script for replacing SCSS variables
+- **`custom/css/_primitives.ini`** - Custom primary color (HSL: 235, 48%)
+- **`custom/css/_tokens.ini`** - Custom token overrides
+- **`custom/assets/`** - Custom logos, favicons, and branding images
+
+### `.circleci/` - CI/CD Pipeline
+
+CircleCI configuration for automated builds and publishing.
+
+#### Workflow: `build-publish-workflow`
+
+Triggers on **tags only** (not branches). Uses the `build-defaults` context.
+
+Jobs:
+1. **publish** - Builds and pushes the custom Docker image
+   - Uses `cimg/node:22.16.0` image
+   - Runs `.automation-hub/build.sh` with the tag version
+   - Runs `.automation-hub/push.sh` with the tag version
+
+To publish a new version, create a git tag:
+```bash
+git tag n8n@1.x.x
+git push origin n8n@1.x.x
+```
+
+### `.devcontainer/` - Development Environment
+
+VS Code Dev Container / GitHub Codespaces configuration for local development.
+
+#### Services (docker-compose.yml)
+
+- **postgres** - PostgreSQL 16 database (user: postgres, password: password, db: n8n)
+- **n8n** - Development container based on `n8nio/base:22`
+
+#### Configuration (devcontainer.json)
+
+- **Ports forwarded**: 8080, 5678
+- **Post-create**: Installs pnpm dependencies and Claude Code CLI
+- **Post-attach**: Builds n8n and starts the development server; launches Claude Code
+- **Host requirements**: 4 CPUs, 16GB RAM, 32GB storage
+
+#### Mounts
+
+- Workspace files
+- SSH keys from `~/.ssh`
+- n8n config from `~/.n8n`
+
 ## Project Overview
 
 n8n is a workflow automation platform written in TypeScript, using a monorepo
