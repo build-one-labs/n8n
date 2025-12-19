@@ -5,6 +5,7 @@ import {
 	MODAL_CONFIRM,
 	VIEWS,
 	WORKFLOW_SHARE_MODAL_KEY,
+	IS_DRAFT_PUBLISH_ENABLED,
 } from '@/app/constants';
 import { PROJECT_MOVE_RESOURCE_MODAL } from '@/features/collaboration/projects/projects.constants';
 import { useMessage } from '@/app/composables/useMessage';
@@ -111,7 +112,6 @@ const workflowsStore = useWorkflowsStore();
 const projectsStore = useProjectsStore();
 const foldersStore = useFoldersStore();
 const mcpStore = useMCPStore();
-
 const hiddenBreadcrumbsItemsAsync = ref<Promise<PathItem[]>>(new Promise(() => {}));
 const cachedHiddenBreadcrumbsItems = ref<PathItem[]>([]);
 
@@ -123,6 +123,20 @@ const mcpToggleStatus = ref<boolean | null>(null);
 const resourceTypeLabel = computed(() => locale.baseText('generic.workflow').toLowerCase());
 const currentUser = computed(() => usersStore.currentUser ?? ({} as IUser));
 const workflowPermissions = computed(() => getResourcePermissions(props.data.scopes).workflow);
+
+const globalPermissions = computed(
+	() => getResourcePermissions(usersStore.currentUser?.globalScopes).workflow,
+);
+const projectPermissions = computed(
+	() =>
+		getResourcePermissions(
+			projectsStore.myProjects?.find((p) => props.data.homeProject?.id === p.id)?.scopes,
+		).workflow,
+);
+
+const canCreateWorkflow = computed(
+	() => globalPermissions.value.create ?? projectPermissions.value.create,
+);
 
 const showFolders = computed(() => {
 	return props.areFoldersEnabled && route.name !== VIEWS.WORKFLOWS;
@@ -171,7 +185,12 @@ const actions = computed(() => {
 		},
 	];
 
-	if (workflowPermissions.value.create && !props.readOnly && !props.data.isArchived) {
+	if (
+		workflowPermissions.value.read &&
+		canCreateWorkflow.value &&
+		!props.readOnly &&
+		!props.data.isArchived
+	) {
 		items.push({
 			label: locale.baseText('workflows.item.duplicate'),
 			value: WORKFLOW_LIST_ITEM_ACTIONS.DUPLICATE,
@@ -254,6 +273,12 @@ const isSomeoneElsesWorkflow = computed(
 		props.data.homeProject?.type !== ProjectTypes.Team &&
 		props.data.homeProject?.id !== projectsStore.personalProject?.id,
 );
+
+const isDraftPublishEnabled = IS_DRAFT_PUBLISH_ENABLED;
+
+const isWorkflowPublished = computed(() => {
+	return props.data.activeVersionId !== null;
+});
 
 async function onClick(event?: KeyboardEvent | PointerEvent) {
 	if (isIFrameOrigin()) {
@@ -627,7 +652,7 @@ const tags = computed(
 					{{ locale.baseText('workflows.item.archived') }}
 				</N8nText>
 				<WorkflowActivator
-					v-else
+					v-else-if="!isDraftPublishEnabled"
 					class="mr-s"
 					:is-archived="data.isArchived"
 					:workflow-active="data.active"
@@ -636,6 +661,32 @@ const tags = computed(
 					data-test-id="workflow-card-activator"
 					@update:workflow-active="onWorkflowActiveToggle"
 				/>
+				<div
+					v-if="isDraftPublishEnabled && !data.isArchived"
+					:class="$style.publishIndicator"
+					data-test-id="workflow-card-publish-indicator"
+				>
+					<N8nTooltip
+						:content="
+							isWorkflowPublished
+								? locale.baseText('generic.published')
+								: locale.baseText('generic.notPublished')
+						"
+					>
+						<N8nIcon
+							v-if="isWorkflowPublished"
+							icon="circle-check"
+							size="large"
+							:class="$style.publishIndicatorColor"
+						/>
+						<N8nIcon
+							v-else
+							icon="circle-minus"
+							size="large"
+							:class="$style.notPublishedIndicatorColor"
+						/>
+					</N8nTooltip>
+				</div>
 
 				<N8nActionToggle
 					:actions="actions"
@@ -729,6 +780,40 @@ const tags = computed(
 
 	&:hover {
 		color: var(--color--text);
+	}
+}
+
+.publishIndicator {
+	display: flex;
+	align-items: center;
+	gap: var(--spacing--4xs);
+}
+
+.publishIndicatorColor {
+	color: var(--color--mint-700);
+
+	:global(body[data-theme='dark']) & {
+		color: var(--color--mint-600);
+	}
+
+	@media (prefers-color-scheme: dark) {
+		:global(body:not([data-theme])) & {
+			color: var(--color--mint-600);
+		}
+	}
+}
+
+.notPublishedIndicatorColor {
+	color: var(--color--neutral-600);
+
+	:global(body[data-theme='dark']) & {
+		color: var(--color--neutral-400);
+	}
+
+	@media (prefers-color-scheme: dark) {
+		:global(body:not([data-theme])) & {
+			color: var(--color--neutral-400);
+		}
 	}
 }
 

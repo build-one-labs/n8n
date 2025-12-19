@@ -9,6 +9,8 @@ import type {
 	NodeConnectionType,
 	NodeParameterValue,
 	NodeParameterValueType,
+	IDestinationNode,
+	StartNodeData,
 } from 'n8n-workflow';
 import type { RouteLocation } from 'vue-router';
 import type {
@@ -64,7 +66,12 @@ interface OutputModeChangedEventData {
 }
 interface ExecutionFinishedEventData {
 	runDataExecutedStartData:
-		| { destinationNode?: string | undefined; runNodeFilter?: string[] | undefined }
+		| {
+				startNodes?: StartNodeData[];
+				destinationNode?: IDestinationNode | undefined;
+				originalDestinationNode?: IDestinationNode | undefined;
+				runNodeFilter?: string[] | undefined;
+		  }
 		| undefined;
 	nodeName?: string;
 	errorMessage: string;
@@ -212,12 +219,16 @@ export interface ExternalHooks {
 	};
 	workflow: {
 		activeChange: Array<ExternalHooksMethod<{ active: boolean; workflowId: string }>>;
-		activeChangeCurrent: Array<ExternalHooksMethod<{ workflowId: string; active: boolean }>>;
+		activeChangeCurrent: Array<
+			ExternalHooksMethod<{ workflowId: string; versionId: string | null; active: boolean }>
+		>;
 		afterUpdate: Array<ExternalHooksMethod<{ workflowData: IWorkflowDb }>>;
 		open: Array<ExternalHooksMethod<{ workflowId: string; workflowName: string }>>;
 		add: Array<ExternalHooksMethod<{ projectId: string }>>;
 		duplicate: Array<ExternalHooksMethod<{ workflowData: IWorkflowDb }>>;
 		delete: Array<ExternalHooksMethod<{ workflowId: string; type?: string }>>;
+		published: Array<ExternalHooksMethod<{ workflowId: string; versionId: string }>>;
+		unpublished: Array<ExternalHooksMethod<{ workflowId: string }>>;
 	};
 	execution: {
 		open: Array<
