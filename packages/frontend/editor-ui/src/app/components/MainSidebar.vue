@@ -307,8 +307,9 @@ const whatsNewItems = computed<{ available: boolean; children: IMenuElement[] }>
 
 const createBtn = ref<InstanceType<typeof N8nNavigationDropdown>>();
 
-const isCollapsed = computed(() => uiStore.sidebarMenuCollapsed);
-const isSidebarHidden = computed(() => new URL(location.href).searchParams.get('hideSidebar') === 'true');
+const isSidebarHidden = computed(
+	() => new URL(location.href).searchParams.get('hideSidebar') === 'true',
+);
 const logoPath = computed(
 	() => basePath.value + (isCollapsed.value ? 'static/logo/collapsed.svg' : uiStore.logo),
 );
