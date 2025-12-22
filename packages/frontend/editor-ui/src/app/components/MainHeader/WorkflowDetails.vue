@@ -96,7 +96,6 @@ const message = useMessage();
 const toast = useToast();
 const documentTitle = useDocumentTitle();
 const workflowSaving = useWorkflowSaving({ router });
-const pageRedirectionHelper = usePageRedirectionHelper();
 const externalHooks = useExternalHooks();
 
 const isTagsEditEnabled = ref(false);
