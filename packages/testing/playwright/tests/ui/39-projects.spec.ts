@@ -31,7 +31,8 @@ test.describe('Projects', () => {
 		test('should not show project add button and projects to a member if not invited to any project @auth:member', async ({
 			n8n,
 		}) => {
-			await expect(n8n.sideBar.getAddFirstProjectButton()).toBeDisabled();
+			await n8n.sideBar.universalAdd();
+			await expect(n8n.sideBar.getProjectButtonInUniversalAdd()).toContainClass('is-disabled');
 			await expect(n8n.sideBar.getProjectMenuItems()).toHaveCount(0);
 		});
 
@@ -73,7 +74,7 @@ test.describe('Projects', () => {
 			await n8n.navigate.toWorkflows();
 			await expect(n8n.workflows.cards.getWorkflows()).toHaveCount(0);
 
-			await n8n.sideBar.addWorkflowFromUniversalAdd('Personal');
+			await n8n.navigate.toWorkflow('new');
 
 			await n8n.canvas.addNode(MANUAL_TRIGGER_NODE_NAME);
 			await n8n.canvas.addNode(NOTION_NODE_NAME, { action: 'Append a block', closeNDV: true });

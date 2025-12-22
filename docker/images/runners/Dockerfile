@@ -11,15 +11,6 @@ WORKDIR /app/task-runner-javascript
 
 RUN corepack enable pnpm
 
-# Install extra runtime-only npm packages. Allow usage in the Code node via
-# 'NODE_FUNCTION_ALLOW_EXTERNAL' env variable on n8n-task-runners.json.
-RUN rm -f node_modules/.modules.yaml
-RUN mv package.json package.json.bak
-COPY docker/images/runners/package.json /app/task-runner-javascript/package.json
-RUN pnpm install --prod --no-lockfile --silent
-RUN mv package.json extras.json
-RUN mv package.json.bak package.json
-
 # Remove `catalog` and `workspace` references from package.json to allow `pnpm add` in extended images
 RUN node -e "const pkg = require('./package.json'); \
     Object.keys(pkg.dependencies || {}).forEach(k => { \
@@ -34,6 +25,10 @@ RUN node -e "const pkg = require('./package.json'); \
     }); \
     delete pkg.devDependencies; \
     require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
+
+# Install moment (special case for backwards compatibility)
+RUN rm -f node_modules/.modules.yaml && \
+    pnpm add moment@2.30.1 --prod --no-lockfile
 
 # ==============================================================================
 # STAGE 2: Python runner build (@n8n/task-runner-python) with uv
@@ -79,17 +74,12 @@ RUN uv sync \
 			--all-extras \
       --no-editable
 
-# Install extra runtime-only Python packages. Allow usage in the Code node via
-# 'N8N_RUNNERS_EXTERNAL_ALLOW' env variable on n8n-task-runners.json.
-COPY docker/images/runners/extras.txt /app/task-runner-python/extras.txt
-RUN uv pip install -r /app/task-runner-python/extras.txt
-
 # ==============================================================================
 # STAGE 3: Task Runner Launcher download
 # ==============================================================================
 FROM alpine:3.22.1 AS launcher-downloader
 ARG TARGETPLATFORM
-ARG LAUNCHER_VERSION=1.4.1
+ARG LAUNCHER_VERSION=1.4.2
 
 RUN set -e; \
     case "$TARGETPLATFORM" in \
@@ -133,9 +123,9 @@ COPY --from=node-alpine /usr/local/bin/node /usr/local/bin/node
 RUN apk add --no-cache ca-certificates tini libstdc++ libc6-compat
 
 # Bring corepack and pnpm over, to make the image easier to extend
-COPY --from=node-alpine /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node-alpine /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/corepack
 RUN ln -s ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack && \
-    ln -s ../lib/node_modules/corepack/dist/pnpm.js /usr/local/bin/pnpm
+		ln -s ../lib/node_modules/corepack/dist/pnpm.js /usr/local/bin/pnpm
 
 RUN addgroup -g 1000 -S runner \
  && adduser  -u 1000 -S -G runner -h /home/runner -D runner

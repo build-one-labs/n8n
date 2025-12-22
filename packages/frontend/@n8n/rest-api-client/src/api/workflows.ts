@@ -20,6 +20,7 @@ export interface WorkflowData {
 	tags?: string[];
 	pinData?: IPinData;
 	versionId?: string;
+	activeVersionId?: string | null;
 	meta?: WorkflowMetadata;
 }
 
@@ -37,6 +38,8 @@ export interface WorkflowDataUpdate {
 	meta?: WorkflowMetadata;
 	parentFolderId?: string;
 	uiContext?: string;
+	// checksum of workflow snapshot for conflict detection
+	expectedChecksum?: string;
 }
 
 export interface WorkflowDataCreate extends WorkflowDataUpdate {

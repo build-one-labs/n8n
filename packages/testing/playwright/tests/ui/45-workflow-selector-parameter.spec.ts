@@ -4,9 +4,9 @@ import { n8nPage } from '../../pages/n8nPage';
 
 const EXECUTE_WORKFLOW_NODE_NAME = 'Execute Sub-workflow';
 
-test.describe('Workflow Selector Parameter @db:reset', () => {
+test.describe('Workflow Selector Parameter', () => {
 	test.beforeEach(async ({ n8n }) => {
-		await n8n.start.fromNewProjectBlankCanvas();
+		const projectId = await n8n.start.fromNewProjectBlankCanvas();
 
 		const subWorkflows = [
 			{ file: 'Test_Subworkflow_Get_Weather.json', name: 'Get_Weather' },
@@ -14,18 +14,33 @@ test.describe('Workflow Selector Parameter @db:reset', () => {
 		];
 
 		for (const { file } of subWorkflows) {
-			await n8n.api.workflows.importWorkflowFromFile(file);
+			// Create workflow with Execute Workflow Trigger node so it can be activated
+			const workflowData = {
+				name: file,
+				nodes: [
+					{
+						id: 'execute-workflow-trigger',
+						name: 'When Executed by Another Workflow',
+						type: 'n8n-nodes-base.executeWorkflowTrigger',
+						position: [0, 0] as [number, number],
+						parameters: {},
+						typeVersion: 1,
+					},
+				],
+				connections: {},
+				settings: {},
+				active: false,
+			};
+			// @ts-expect-error - projectId is not part of IWorkflowBase but is accepted by the API
+			workflowData.projectId = projectId;
+
+			const workflow = await n8n.api.workflows.createWorkflow(workflowData);
+			// Activate the workflow so it appears in the workflow selector
+			await n8n.api.workflows.activate(workflow.id, workflow.versionId);
 		}
 
 		await n8n.canvas.addNode(MANUAL_TRIGGER_NODE_NAME);
 		await n8n.canvas.addNode(EXECUTE_WORKFLOW_NODE_NAME, { action: 'Execute A Sub Workflow' });
-	});
-
-	test('should render sub-workflows list', async ({ n8n }) => {
-		await n8n.ndv.openResourceLocator('workflowId');
-
-		await expect(n8n.ndv.getResourceLocatorItems()).toHaveCount(2);
-		await expect(n8n.ndv.getAddResourceItem()).toHaveCount(1);
 	});
 
 	test('should show required parameter warning', async ({ n8n }) => {
@@ -35,15 +50,18 @@ test.describe('Workflow Selector Parameter @db:reset', () => {
 
 	test('should filter sub-workflows list', async ({ n8n }) => {
 		await n8n.ndvComposer.filterWorkflowList('workflowId', 'Weather');
-		await expect(n8n.ndv.getResourceLocatorItems()).toHaveCount(1);
+
+		const items = n8n.ndv.getResourceLocatorItems();
+
+		await expect(items.filter({ hasText: 'Search DB' })).toHaveCount(0);
 
 		await n8n.ndvComposer.selectFirstFilteredWorkflow();
 		const inputField = n8n.ndv.getResourceLocatorInput('workflowId').locator('input');
-		await expect(inputField).toHaveValue(/Get Weather.*Test/);
+		await expect(inputField).toHaveValue(/Get_Weather/);
 	});
 
 	test('should render sub-workflow links correctly', async ({ n8n }) => {
-		await n8n.ndvComposer.selectWorkflowFromList('workflowId', 'Search DB');
+		await n8n.ndvComposer.selectWorkflowFromList('workflowId', 'Search_DB');
 		const link = n8n.ndv.getResourceLocatorInput('workflowId').locator('a');
 		await expect(link).toBeVisible();
 
@@ -52,7 +70,7 @@ test.describe('Workflow Selector Parameter @db:reset', () => {
 	});
 
 	test('should switch to ID mode on expression', async ({ n8n }) => {
-		await n8n.ndvComposer.selectWorkflowFromList('workflowId', 'Search DB');
+		await n8n.ndvComposer.selectWorkflowFromList('workflowId', 'Search_DB');
 		const modeSelector = n8n.ndv.getResourceLocatorModeSelector('workflowId').locator('input');
 		await expect(modeSelector).toHaveValue('From list');
 

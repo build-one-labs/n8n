@@ -1,4 +1,9 @@
-import { ImportWorkflowFromUrlDto, ROLE, TransferWorkflowBodyDto } from '@n8n/api-types';
+import {
+	ActivateWorkflowDto,
+	ImportWorkflowFromUrlDto,
+	ROLE,
+	TransferWorkflowBodyDto,
+} from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import { GlobalConfig } from '@n8n/config';
 import type { Project } from '@n8n/db';
@@ -30,16 +35,8 @@ import { PROJECT_OWNER_ROLE_SLUG } from '@n8n/permissions';
 import { In, type FindOptionsRelations } from '@n8n/typeorm';
 import axios from 'axios';
 import express from 'express';
-import { UnexpectedError } from 'n8n-workflow';
+import { UnexpectedError, calculateWorkflowChecksum } from 'n8n-workflow';
 import { v4 as uuid } from 'uuid';
-
-import { WorkflowExecutionService } from './workflow-execution.service';
-import { WorkflowFinderService } from './workflow-finder.service';
-import { WorkflowHistoryService } from './workflow-history/workflow-history.service';
-import { WorkflowRequest } from './workflow.request';
-import { WorkflowService } from './workflow.service';
-import { EnterpriseWorkflowService } from './workflow.service.ee';
-import { CredentialsService } from '../credentials/credentials.service';
 
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
@@ -61,6 +58,14 @@ import { UserManagementMailer } from '@/user-management/email';
 import * as utils from '@/utils';
 import * as WorkflowHelpers from '@/workflow-helpers';
 import { userHasScopes } from '@/permissions.ee/check-access';
+
+import { WorkflowExecutionService } from './workflow-execution.service';
+import { WorkflowFinderService } from './workflow-finder.service';
+import { WorkflowHistoryService } from './workflow-history/workflow-history.service';
+import { WorkflowRequest } from './workflow.request';
+import { WorkflowService } from './workflow.service';
+import { EnterpriseWorkflowService } from './workflow.service.ee';
+import { CredentialsService } from '../credentials/credentials.service';
 
 @RestController('/workflows')
 export class WorkflowsController {
@@ -96,6 +101,20 @@ export class WorkflowsController {
 		// mess with relations of other workflows
 		delete req.body.shared;
 
+		// @ts-expect-error: We shouldn't accept this, this will be set when activating
+		if (req.body.activeVersionId || req.body.active) {
+			this.logger.warn(
+				'Creating a workflow as active is not supported. The workflow will be created as inactive.',
+				{ userId: req.user.id },
+			);
+
+			// @ts-expect-error: We shouldn't accept this
+			delete req.body.activeVersionId;
+			// @ts-expect-error: We shouldn't accept this
+			delete req.body.activeVersion;
+			req.body.active = false;
+		}
+
 		const newWorkflow = new WorkflowEntity();
 
 		Object.assign(newWorkflow, req.body);
@@ -120,7 +139,9 @@ export class WorkflowsController {
 			// This is a new workflow, so we simply check if the user has access to
 			// all used credentials
 
-			const allCredentials = await this.credentialsService.getMany(req.user);
+			const allCredentials = await this.credentialsService.getMany(req.user, {
+				includeGlobal: true,
+			});
 
 			try {
 				this.enterpriseWorkflowService.validateCredentialPermissionsToUser(
@@ -181,11 +202,23 @@ export class WorkflowsController {
 
 			await transactionManager.save<SharedWorkflow>(newSharedWorkflow);
 
+			await this.workflowHistoryService.saveVersion(
+				req.user,
+				workflow,
+				workflow.id,
+				transactionManager,
+			);
+
 			return await this.workflowFinderService.findWorkflowForUser(
 				workflow.id,
 				req.user,
 				['workflow:read'],
-				{ em: transactionManager, includeTags: true, includeParentFolder: true },
+				{
+					em: transactionManager,
+					includeTags: true,
+					includeParentFolder: true,
+					includeActiveVersion: true,
+				},
 			);
 		});
 
@@ -193,8 +226,6 @@ export class WorkflowsController {
 			this.logger.error('Failed to create workflow', { userId: req.user.id });
 			throw new InternalServerError('Failed to save workflow');
 		}
-
-		await this.workflowHistoryService.saveVersion(req.user, savedWorkflow, savedWorkflow.id);
 
 		if (tagIds && !this.globalConfig.tags.disabled && savedWorkflow.tags) {
 			savedWorkflow.tags = this.tagService.sortByRequestOrder(savedWorkflow.tags, {
@@ -221,7 +252,9 @@ export class WorkflowsController {
 
 		const scopes = await this.workflowService.getWorkflowScopes(req.user, savedWorkflow.id);
 
-		return { ...savedWorkflowWithMetaData, scopes };
+		const checksum = await calculateWorkflowChecksum(savedWorkflow);
+
+		return { ...savedWorkflowWithMetaData, scopes, checksum };
 	}
 
 	@Get('/', { middlewares: listQueryMiddleware })
@@ -251,6 +284,14 @@ export class WorkflowsController {
 
 	@Get('/new')
 	async getNewName(req: WorkflowRequest.NewName) {
+		const projectId = req.query.projectId;
+		if (
+			!(await this.projectService.getProjectWithScope(req.user, projectId, ['workflow:create']))
+		) {
+			throw new ForbiddenError(
+				"You don't have the permissions to create a workflow in this project.",
+			);
+		}
 		const requestedName = req.query.name ?? this.globalConfig.workflows.defaultName;
 
 		const name = await this.namingService.getUniqueWorkflowName(requestedName);
@@ -259,10 +300,18 @@ export class WorkflowsController {
 
 	@Get('/from-url')
 	async getFromUrl(
-		_req: AuthenticatedRequest,
+		req: AuthenticatedRequest,
 		_res: express.Response,
 		@Query query: ImportWorkflowFromUrlDto,
 	) {
+		const projectId = query.projectId;
+		if (
+			!(await this.projectService.getProjectWithScope(req.user, projectId, ['workflow:create']))
+		) {
+			throw new ForbiddenError(
+				"You don't have the permissions to create a workflow in this project.",
+			);
+		}
 		let workflowData: IWorkflowResponse | undefined;
 		try {
 			const { data } = await axios.get<IWorkflowResponse>(query.url);
@@ -309,7 +358,11 @@ export class WorkflowsController {
 				workflowId,
 				req.user,
 				['workflow:read'],
-				{ includeTags: !this.globalConfig.tags.disabled, includeParentFolder: true },
+				{
+					includeTags: !this.globalConfig.tags.disabled,
+					includeParentFolder: true,
+					includeActiveVersion: true,
+				},
 			);
 
 			if (!workflow) {
@@ -327,8 +380,9 @@ export class WorkflowsController {
 			delete workflowWithMetaData.shared;
 
 			const scopes = await this.workflowService.getWorkflowScopes(req.user, workflowId);
+			const checksum = await calculateWorkflowChecksum(workflow);
 
-			return { ...workflowWithMetaData, scopes };
+			return { ...workflowWithMetaData, scopes, checksum };
 		}
 
 		// sharing disabled
@@ -337,7 +391,11 @@ export class WorkflowsController {
 			workflowId,
 			req.user,
 			['workflow:read'],
-			{ includeTags: !this.globalConfig.tags.disabled, includeParentFolder: true },
+			{
+				includeTags: !this.globalConfig.tags.disabled,
+				includeParentFolder: true,
+				includeActiveVersion: true,
+			},
 		);
 
 		if (!workflow) {
@@ -351,8 +409,9 @@ export class WorkflowsController {
 		}
 
 		const scopes = await this.workflowService.getWorkflowScopes(req.user, workflowId);
+		const checksum = await calculateWorkflowChecksum(workflow);
 
-		return { ...workflow, scopes };
+		return { ...workflow, scopes, checksum };
 	}
 
 	@Patch('/:workflowId')
@@ -362,7 +421,16 @@ export class WorkflowsController {
 		const forceSave = req.query.forceSave === 'true';
 
 		let updateData = new WorkflowEntity();
-		const { tags, parentFolderId, ...rest } = req.body;
+		const { tags, parentFolderId, expectedChecksum, ...rest } = req.body;
+
+		// TODO: Add zod validation for entire `rest` object before assigning to `updateData`
+		if (
+			rest.settings?.timeSavedMode !== undefined &&
+			!['fixed', 'dynamic'].includes(rest.settings.timeSavedMode)
+		) {
+			throw new BadRequestError('Invalid timeSavedMode');
+		}
+
 		Object.assign(updateData, rest);
 
 		const isSharingEnabled = this.license.isSharingEnabled();
@@ -374,18 +442,17 @@ export class WorkflowsController {
 			);
 		}
 
-		const updatedWorkflow = await this.workflowService.update(
-			req.user,
-			updateData,
-			workflowId,
-			tags,
+		const updatedWorkflow = await this.workflowService.update(req.user, updateData, workflowId, {
+			tagIds: tags,
 			parentFolderId,
-			isSharingEnabled ? forceSave : true,
-		);
+			forceSave: isSharingEnabled ? forceSave : true,
+			expectedChecksum,
+		});
 
 		const scopes = await this.workflowService.getWorkflowScopes(req.user, workflowId);
+		const checksum = await calculateWorkflowChecksum(updatedWorkflow);
 
-		return { ...updatedWorkflow, scopes };
+		return { ...updatedWorkflow, scopes, checksum };
 	}
 
 	@Delete('/:workflowId')
@@ -423,7 +490,9 @@ export class WorkflowsController {
 			);
 		}
 
-		return workflow;
+		const checksum = await calculateWorkflowChecksum(workflow);
+
+		return { ...workflow, checksum };
 	}
 
 	@Post('/:workflowId/unarchive')
@@ -444,7 +513,45 @@ export class WorkflowsController {
 			);
 		}
 
-		return workflow;
+		const checksum = await calculateWorkflowChecksum(workflow);
+
+		return { ...workflow, checksum };
+	}
+
+	@Post('/:workflowId/activate')
+	@ProjectScope('workflow:update')
+	async activate(
+		req: WorkflowRequest.Activate,
+		_res: unknown,
+		@Param('workflowId') workflowId: string,
+		@Body body: ActivateWorkflowDto,
+	) {
+		const { versionId, name, description, expectedChecksum } = body;
+
+		const workflow = await this.workflowService.activateWorkflow(req.user, workflowId, {
+			versionId,
+			name,
+			description,
+			expectedChecksum,
+		});
+
+		const scopes = await this.workflowService.getWorkflowScopes(req.user, workflowId);
+		const checksum = await calculateWorkflowChecksum(workflow);
+
+		return { ...workflow, scopes, checksum };
+	}
+
+	@Post('/:workflowId/deactivate')
+	@ProjectScope('workflow:update')
+	async deactivate(req: WorkflowRequest.Deactivate) {
+		const { workflowId } = req.params;
+
+		const workflow = await this.workflowService.deactivateWorkflow(req.user, workflowId);
+
+		const scopes = await this.workflowService.getWorkflowScopes(req.user, workflowId);
+		const checksum = await calculateWorkflowChecksum(workflow);
+
+		return { ...workflow, scopes, checksum };
 	}
 
 	@Post('/:workflowId/run')

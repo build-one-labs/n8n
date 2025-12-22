@@ -53,7 +53,7 @@ test.describe('Canvas Node Manipulation and Navigation', () => {
 		await n8n.canvas.clickNodeCreatorItemName(SWITCH_NODE_NAME);
 		await n8n.page.keyboard.press('Escape');
 
-		await n8n.canvas.saveWorkflow();
+		await n8n.canvasComposer.saveWorkflowAndWaitForUrl();
 		await expect(n8n.canvas.getWorkflowSaveButton()).toContainText('Saved');
 
 		await n8n.canvasComposer.reloadAndWaitForCanvas();
@@ -100,14 +100,21 @@ test.describe('Canvas Node Manipulation and Navigation', () => {
 		await n8n.canvas.clickZoomToFitButton();
 
 		await n8n.canvas.connectNodesByDrag(MANUAL_TRIGGER_NODE_DISPLAY_NAME, 'Edit Fields1', 0, 0);
+		await expect(
+			n8n.canvas.connectionBetweenNodes(MANUAL_TRIGGER_NODE_DISPLAY_NAME, 'Edit Fields1').first(),
+		).toBeAttached();
 
 		await n8n.canvas.connectNodesByDrag('Edit Fields', MERGE_NODE_NAME, 0, 0);
+		await expect(
+			n8n.canvas.connectionBetweenNodes('Edit Fields', MERGE_NODE_NAME).first(),
+		).toBeAttached();
 
 		await n8n.canvas.connectNodesByDrag('Edit Fields1', MERGE_NODE_NAME, 0, 1);
+		await expect(
+			n8n.canvas.connectionBetweenNodes('Edit Fields1', MERGE_NODE_NAME).first(),
+		).toBeAttached();
 
-		await checkConnections();
-
-		await n8n.canvas.saveWorkflow();
+		await n8n.canvasComposer.saveWorkflowAndWaitForUrl();
 		await expect(n8n.canvas.getWorkflowSaveButton()).toContainText('Saved');
 
 		await n8n.canvasComposer.reloadAndWaitForCanvas();
@@ -126,7 +133,9 @@ test.describe('Canvas Node Manipulation and Navigation', () => {
 
 		await expect(
 			n8n.canvas.getConnectionLabelBetweenNodes('Edit Fields1', MERGE_NODE_NAME).first(),
-		).toContainText('2 items');
+		).toContainText('1 item');
+
+		await expect(n8n.canvas.getNodeOutputHandle(MERGE_NODE_NAME).first()).toContainText('2 items');
 	});
 
 	test('should add nodes and check execution success', async ({ n8n }) => {
@@ -407,7 +416,7 @@ test.describe('Canvas Zoom Functionality', () => {
 		await n8n.canvasComposer.renameNodeViaShortcut(CODE_NODE_DISPLAY_NAME, 'Something else');
 		await expect(n8n.canvas.nodeByName('Something else')).toBeAttached();
 
-		await n8n.canvas.saveWorkflow();
+		await n8n.canvasComposer.saveWorkflowAndWaitForUrl();
 		await expect(n8n.canvas.getWorkflowSaveButton()).toContainText('Saved');
 
 		await n8n.canvasComposer.reloadAndWaitForCanvas();

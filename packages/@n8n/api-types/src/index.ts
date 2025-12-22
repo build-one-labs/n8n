@@ -27,10 +27,13 @@ export {
 	emptyChatModelsResponse,
 	type ChatModelsRequest,
 	type ChatModelsResponse,
+	chatAttachmentSchema,
+	type ChatAttachment,
 	ChatHubSendMessageRequest,
 	ChatHubRegenerateMessageRequest,
 	ChatHubEditMessageRequest,
 	ChatHubUpdateConversationRequest,
+	ChatHubConversationsRequest,
 	type ChatMessageId,
 	type ChatSessionId,
 	type ChatHubMessageDto,
@@ -43,6 +46,8 @@ export {
 	ChatHubUpdateAgentRequest,
 	type EnrichedStructuredChunk,
 	type ChatHubAgentTool,
+	UpdateChatSettingsRequest,
+	type ChatProviderSettingsDto,
 } from './chat-hub';
 
 export type { Collaborator } from './push/collaboration';
@@ -53,6 +58,10 @@ export type { SendWorkerStatusMessage } from './push/worker';
 export type { BannerName } from './schemas/banner-name.schema';
 export { ViewableMimeTypes } from './schemas/binary-data.schema';
 export { passwordSchema } from './schemas/password.schema';
+export {
+	WORKFLOW_VERSION_NAME_MAX_LENGTH,
+	WORKFLOW_VERSION_DESCRIPTION_MAX_LENGTH,
+} from './schemas/workflow-version.schema';
 
 export type {
 	ProjectType,
