@@ -96,7 +96,12 @@ export class WorkflowsController {
 
 	@Post('/')
 	async create(req: WorkflowRequest.Create) {
-		delete req.body.id; // delete if sent
+		if (req.body.id) {
+			const workflowExists = await this.workflowRepository.existsBy({ id: req.body.id });
+			if (workflowExists) {
+				throw new BadRequestError(`Workflow with id ${req.body.id} exists already.`);
+			}
+		}
 		// @ts-expect-error: We shouldn't accept this because it can
 		// mess with relations of other workflows
 		delete req.body.shared;
@@ -114,6 +119,8 @@ export class WorkflowsController {
 			delete req.body.activeVersion;
 			req.body.active = false;
 		}
+
+		const { autosaved = false } = req.body;
 
 		const newWorkflow = new WorkflowEntity();
 
@@ -157,28 +164,32 @@ export class WorkflowsController {
 
 		const { manager: dbManager } = this.projectRepository;
 
-		let project: Project | null;
+		let project: Project | null = null;
 		const savedWorkflow = await dbManager.transaction(async (transactionManager) => {
-			const { projectId, parentFolderId } = req.body;
-			project =
-				projectId === undefined
-					? await this.projectRepository.getPersonalProjectForUser(req.user.id, transactionManager)
-					: await this.projectService.getProjectWithScope(
-							req.user,
-							projectId,
-							['workflow:create'],
-							transactionManager,
-						);
+			const { parentFolderId } = req.body;
+			let { projectId } = req.body;
 
-			if (typeof projectId === 'string' && project === null) {
+			if (projectId === undefined) {
+				const personalProject = await this.projectRepository.getPersonalProjectForUserOrFail(
+					req.user.id,
+					transactionManager,
+				);
+				// Chat users are not allowed to create workflows even within their personal project,
+				// so even though we found the project ensure it gets found via expected scope too.
+				projectId = personalProject.id;
+			}
+
+			project = await this.projectService.getProjectWithScope(
+				req.user,
+				projectId,
+				['workflow:create'],
+				transactionManager,
+			);
+
+			if (project === null) {
 				throw new BadRequestError(
 					"You don't have the permissions to save the workflow in this project.",
 				);
-			}
-
-			// Safe guard in case the personal project does not exist for whatever reason.
-			if (project === null) {
-				throw new UnexpectedError('No personal project found');
 			}
 
 			const workflow = await transactionManager.save<WorkflowEntity>(newWorkflow);
@@ -206,6 +217,7 @@ export class WorkflowsController {
 				req.user,
 				workflow,
 				workflow.id,
+				autosaved,
 				transactionManager,
 			);
 
@@ -414,6 +426,18 @@ export class WorkflowsController {
 		return { ...workflow, scopes, checksum };
 	}
 
+	/**
+	 * Checks whether a workflow with the given ID exists.
+	 *
+	 * @note We cannot use @ProjectScope here because we want to check for the id's existence
+	 *       Adding a scope would disable the route if the user didn't have access to the workflow
+	 */
+	@Get('/:workflowId/exists')
+	async exists(req: WorkflowRequest.Get) {
+		const exists = await this.workflowRepository.existsBy({ id: req.params.workflowId });
+		return { exists };
+	}
+
 	@Patch('/:workflowId')
 	@ProjectScope('workflow:update')
 	async update(req: WorkflowRequest.Update) {
@@ -421,7 +445,8 @@ export class WorkflowsController {
 		const forceSave = req.query.forceSave === 'true';
 
 		let updateData = new WorkflowEntity();
-		const { tags, parentFolderId, expectedChecksum, ...rest } = req.body;
+		const { tags, parentFolderId, aiBuilderAssisted, expectedChecksum, autosaved, ...rest } =
+			req.body;
 
 		// TODO: Add zod validation for entire `rest` object before assigning to `updateData`
 		if (
@@ -447,6 +472,8 @@ export class WorkflowsController {
 			parentFolderId,
 			forceSave: isSharingEnabled ? forceSave : true,
 			expectedChecksum,
+			aiBuilderAssisted,
+			autosaved,
 		});
 
 		const scopes = await this.workflowService.getWorkflowScopes(req.user, workflowId);
@@ -519,7 +546,7 @@ export class WorkflowsController {
 	}
 
 	@Post('/:workflowId/activate')
-	@ProjectScope('workflow:update')
+	@ProjectScope('workflow:publish')
 	async activate(
 		req: WorkflowRequest.Activate,
 		_res: unknown,
@@ -542,7 +569,7 @@ export class WorkflowsController {
 	}
 
 	@Post('/:workflowId/deactivate')
-	@ProjectScope('workflow:update')
+	@ProjectScope('workflow:publish')
 	async deactivate(req: WorkflowRequest.Deactivate) {
 		const { workflowId } = req.params;
 
@@ -677,11 +704,7 @@ export class WorkflowsController {
 	) {
 		const lastExecution = await this.executionService.getLastSuccessfulExecution(workflowId);
 
-		if (lastExecution === undefined) {
-			throw new NotFoundError('No successful execution found for the workflow');
-		}
-
-		return lastExecution;
+		return lastExecution ?? null;
 	}
 
 	@Post('/with-node-types')

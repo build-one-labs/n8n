@@ -12,7 +12,11 @@ import type { IUser, INodeTypeDescription, ITelemetryTrackProperties } from 'n8n
 import { LLMServiceError } from '@/errors';
 import { anthropicClaudeSonnet45 } from '@/llm-config';
 import { SessionManagerService } from '@/session-manager.service';
-import { WorkflowBuilderAgent, type ChatPayload } from '@/workflow-builder-agent';
+import {
+	BuilderFeatureFlags,
+	WorkflowBuilderAgent,
+	type ChatPayload,
+} from '@/workflow-builder-agent';
 
 type OnCreditsUpdated = (userId: string, creditsQuota: number, creditsClaimed: number) => void;
 
@@ -29,6 +33,7 @@ export class AiWorkflowBuilderService {
 		private readonly logger?: Logger,
 		private readonly instanceId?: string,
 		private readonly instanceUrl?: string,
+		private readonly n8nVersion?: string,
 		private readonly onCreditsUpdated?: OnCreditsUpdated,
 		private readonly onTelemetryEvent?: OnTelemetryEvent,
 	) {
@@ -153,7 +158,7 @@ export class AiWorkflowBuilderService {
 		});
 	}
 
-	private async getAgent(user: IUser) {
+	private async getAgent(user: IUser, userMessageId: string, featureFlags?: BuilderFeatureFlags) {
 		const { anthropicClaude, tracingClient, authHeaders } = await this.setupModels(user);
 
 		const agent = new WorkflowBuilderAgent({
@@ -162,7 +167,6 @@ export class AiWorkflowBuilderService {
 			llmSimpleTask: anthropicClaude,
 			llmComplexTask: anthropicClaude,
 			logger: this.logger,
-			enableMultiAgent: process.env.N8N_ENABLE_MULTI_AGENT === 'true',
 			checkpointer: this.sessionManager.getCheckpointer(),
 			tracer: tracingClient
 				? new LangChainTracer({ client: tracingClient, projectName: 'n8n-workflow-builder' })
@@ -170,6 +174,10 @@ export class AiWorkflowBuilderService {
 			instanceUrl: this.instanceUrl,
 			onGenerationSuccess: async () => {
 				await this.onGenerationSuccess(user, authHeaders);
+			},
+			runMetadata: {
+				n8nVersion: this.n8nVersion,
+				featureFlags: featureFlags ?? {},
 			},
 		});
 
@@ -200,7 +208,7 @@ export class AiWorkflowBuilderService {
 	}
 
 	async *chat(payload: ChatPayload, user: IUser, abortSignal?: AbortSignal) {
-		const agent = await this.getAgent(user);
+		const agent = await this.getAgent(user, payload.id, payload.featureFlags);
 		const userId = user?.id?.toString();
 		const workflowId = payload.workflowContext?.currentWorkflow?.id;
 
@@ -211,7 +219,7 @@ export class AiWorkflowBuilderService {
 		// After the stream completes, track telemetry
 		if (this.onTelemetryEvent && userId) {
 			try {
-				await this.trackBuilderReplyTelemetry(agent, workflowId, userId);
+				await this.trackBuilderReplyTelemetry(agent, workflowId, userId, payload.id);
 			} catch (error) {
 				this.logger?.error('Failed to track builder reply telemetry', { error });
 			}
@@ -222,6 +230,7 @@ export class AiWorkflowBuilderService {
 		agent: WorkflowBuilderAgent,
 		workflowId: string | undefined,
 		userId: string,
+		userMessageId: string,
 	): Promise<void> {
 		if (!this.onTelemetryEvent) return;
 
@@ -262,6 +271,7 @@ export class AiWorkflowBuilderService {
 			...(state.values.templateIds.length > 0 && {
 				templates_selected: state.values.templateIds,
 			}),
+			user_message_id: userMessageId,
 		};
 
 		this.onTelemetryEvent('Builder replied to user message', properties);
@@ -284,5 +294,17 @@ export class AiWorkflowBuilderService {
 			creditsQuota: -1,
 			creditsClaimed: 0,
 		};
+	}
+
+	/**
+	 * Truncate all messages including and after the message with the specified messageId
+	 * Used when restoring to a previous version
+	 */
+	async truncateMessagesAfter(
+		workflowId: string,
+		user: IUser,
+		messageId: string,
+	): Promise<boolean> {
+		return await this.sessionManager.truncateMessagesAfter(workflowId, user.id, messageId);
 	}
 }
