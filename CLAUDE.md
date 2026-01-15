@@ -67,6 +67,82 @@ git push origin n8n@1.x.x
 
 VS Code Dev Container / GitHub Codespaces configuration for local development.
 
+### Customized Files Reference
+
+This section lists all files with Build.one customizations. Use this when
+merging with upstream n8n to identify potential conflicts.
+
+#### New Files (B1-only, no conflicts expected)
+
+These files are entirely new and don't exist in upstream n8n:
+
+```
+.automation-hub/                        # Entire directory (Docker build system)
+.circleci/config.yml                    # CircleCI CI/CD pipeline
+.devcontainer/                          # Dev container configuration
+packages/frontend/editor-ui/src/app/utils/iframeUtils.ts  # iframe detection utility
+packages/frontend/editor-ui/frontend-hooks.js             # External hooks (root)
+packages/frontend/editor-ui/public/frontend-hooks.js      # External hooks (public)
+```
+
+#### Modified Upstream Files (WILL conflict on merge)
+
+These files modify upstream n8n code. Pay special attention during merges:
+
+**Editor UI - Entry Point & Hooks:**
+```
+packages/frontend/editor-ui/index.html  # Adds frontend-hooks.js script tag + title change
+```
+
+**Editor UI - iframe Integration (isIFrameOrigin checks):**
+```
+packages/frontend/editor-ui/src/app/views/NodeView.vue
+packages/frontend/editor-ui/src/app/views/WorkflowsView.vue
+packages/frontend/editor-ui/src/app/components/WorkflowCard.vue
+packages/frontend/editor-ui/src/app/components/MainHeader/WorkflowDetails.vue
+packages/frontend/editor-ui/src/features/workflows/templates/utils/templateActions.ts
+packages/frontend/editor-ui/src/features/shared/tags/components/TagsDropdown.vue
+packages/frontend/editor-ui/src/features/execution/executions/components/global/GlobalExecutionsListItem.vue
+packages/frontend/editor-ui/src/features/collaboration/projects/components/ProjectHeader.vue
+```
+
+**Branding & Assets (logos, favicons):**
+```
+packages/frontend/editor-ui/public/favicon.ico
+packages/frontend/editor-ui/public/static/logo/collapsed.svg
+packages/frontend/editor-ui/public/static/logo/expanded.svg
+packages/frontend/editor-ui/public/static/logo/expanded-dark.svg
+packages/frontend/editor-ui/public/static/logo/channel/*.svg  # All channel logos
+```
+
+**Design System (colors):**
+```
+packages/frontend/@n8n/design-system/src/css/_primitives.scss  # Primary color HSL
+packages/frontend/@n8n/design-system/src/css/_tokens.scss      # Token overrides
+```
+
+**Internationalization:**
+```
+packages/frontend/@n8n/i18n/src/locales/en.json  # "n8n" → "Build.one - Automation Hub"
+```
+
+**External Hooks Types:**
+```
+packages/frontend/editor-ui/src/app/types/externalHooks.ts  # Hook type definitions
+```
+
+#### Merge Checklist
+
+When merging upstream n8n updates:
+
+1. **index.html** - Ensure `<script type="module" src="frontend-hooks.js"></script>`
+   is present before `</body>`
+2. **Title** - Keep "Build.one - Automation Hub" in index.html title
+3. **iframe checks** - Verify `isIFrameOrigin()` imports still work (file may move)
+4. **CSS colors** - Check _primitives.scss still has B1 purple (HSL: 235, 48%)
+5. **i18n** - Search for "n8n" strings that should be "Build.one - Automation Hub"
+6. **Logos** - Verify custom logos weren't overwritten
+
 #### Services (docker-compose.yml)
 
 - **postgres** - PostgreSQL 16 database (user: postgres, password: password, db: n8n)
